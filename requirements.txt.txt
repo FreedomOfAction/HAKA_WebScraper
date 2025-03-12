@@ -1,8 +1,0 @@
-Flask
-Selenium
-requests
-beautifulsoup4
-python-dotenv
-Celery
-Redis
-pandas
