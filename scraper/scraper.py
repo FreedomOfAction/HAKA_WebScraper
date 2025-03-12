@@ -11,7 +11,6 @@ logging.basicConfig(level=logging.INFO)
 class TradingScraper:
     def __init__(self):
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
         chrome_options.add_argument(f"user-agent={config.USER_AGENT}")
         self.driver = webdriver.Chrome(service=Service(config.SELENIUM_DRIVER_PATH), options=chrome_options)
 
@@ -22,9 +21,8 @@ class TradingScraper:
         soup = BeautifulSoup(response.text, "html.parser")
 
         data = {
-            "broker_name": soup.find("h1", class_="broker-title").text.strip(),
-            "supported_assets": [a.text for a in soup.select("ul.assets-list li")],
-            "trading_fees": soup.find("span", class_="trading-fees").text.strip()
+            "broker_name": soup.find("h1").text.strip() if soup.find("h1") else "Not Found",
+            "trading_assets": [a.text.strip() for a in soup.select("ul.assets-list li")] if soup.select("ul.assets-list li") else ["No Assets Found"]
         }
         return data
 

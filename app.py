@@ -1,32 +1,44 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template, redirect, url_for
 from tasks.worker import scrape_broker
-import logging
+import time
 
 app = Flask(__name__)
 
-@app.route('/scrape', methods=['POST'])
-def start_scrape():
-    """API endpoint to start a scraping task."""
-    data = request.get_json()
-    if "url" not in data:
-        return jsonify({"error": "Missing 'url' parameter"}), 400
+# Home page with input form
+@app.route("/", methods=["GET", "POST"])
+def home():
+    if request.method == "POST":
+        url = request.form.get("url")
+        if not url:
+            return render_template("index.html", error="Please enter a URL.")
 
-    task = scrape_broker.apply_async(args=[data["url"]])
-    return jsonify({"task_id": task.id, "status": "Scraping started"}), 202
+        # Start the scraping task
+        task = scrape_broker.apply_async(args=[url])
 
-@app.route('/status/<task_id>', methods=['GET'])
-def get_status(task_id):
-    """Checks the status of a scraping task."""
+        # Redirect to results page with the task ID
+        return redirect(url_for("results", task_id=task.id))
+
+    return render_template("index.html")
+
+# Check and display results
+@app.route("/results/<task_id>")
+def results(task_id):
     task = scrape_broker.AsyncResult(task_id)
-    return jsonify({"task_id": task_id, "status": task.status}), 200
 
-@app.route('/result/<task_id>', methods=['GET'])
-def get_result(task_id):
-    """Retrieves the result of a completed scraping task."""
-    task = scrape_broker.AsyncResult(task_id)
-    if task.state == "SUCCESS":
-        return jsonify({"task_id": task_id, "data": task.result}), 200
-    return jsonify({"task_id": task_id, "status": task.state}), 202
+    # Wait for the task to finish (Polling)
+    while not task.ready():
+        time.sleep(1)
 
-if __name__ == '__main__':
+    # Handle errors correctly
+    if task.failed():
+        return render_template("results.html", error="Scraping failed. Please check the URL.")
+
+    # Ensure task.result is a dictionary
+    if isinstance(task.result, dict):
+        return render_template("results.html", data=task.result)
+    else:
+        return render_template("results.html", error="Unexpected error occurred.")
+
+
+if __name__ == "__main__":
     app.run(debug=True)
